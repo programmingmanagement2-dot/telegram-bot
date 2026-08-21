@@ -11,6 +11,7 @@ from telegram.ext import (
 from config import BOT_TOKEN
 from services import SERVICES
 from database import init_db, add_user, create_order, get_user_orders
+from admin import is_admin, admin_welcome
 
 
 logging.basicConfig(
@@ -43,6 +44,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Choose an option below:",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown",
+    )
+
+
+async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    if not is_admin(user_id):
+        await update.message.reply_text(
+            "⛔ Access denied.\n\n"
+            "You are not authorized to use the Admin Panel."
+        )
+        return
+
+    keyboard = [
+        [InlineKeyboardButton("📦 Orders", callback_data="admin_orders")],
+        [InlineKeyboardButton("💳 Payments", callback_data="admin_payments")],
+        [InlineKeyboardButton("👥 Users", callback_data="admin_users")],
+    ]
+
+    await update.message.reply_text(
+        admin_welcome(),
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
 
@@ -87,9 +110,7 @@ async def button_handler(
         service = SERVICES.get(service_id)
 
         if not service:
-            await query.edit_message_text(
-                "❌ Service not found."
-            )
+            await query.edit_message_text("❌ Service not found.")
             return
 
         keyboard = [
@@ -122,9 +143,7 @@ async def button_handler(
         service = SERVICES.get(service_id)
 
         if not service:
-            await query.edit_message_text(
-                "❌ Service not found."
-            )
+            await query.edit_message_text("❌ Service not found.")
             return
 
         order_id = create_order(
@@ -177,8 +196,7 @@ async def button_handler(
 
         await query.edit_message_text(
             "💳 *Payment*\n\n"
-            "Payment gateway will be connected after the bot's "
-            "basic order system is tested.\n\n"
+            "Payment system will be connected next.\n\n"
             "⚠️ Never send your card number, CVV or OTP to the bot.",
             parse_mode="Markdown",
         )
@@ -214,6 +232,19 @@ async def button_handler(
             parse_mode="Markdown",
         )
 
+    elif query.data.startswith("admin_"):
+
+        if not is_admin(user_id):
+            await query.answer(
+                "⛔ Unauthorized",
+                show_alert=True,
+            )
+            return
+
+        await query.edit_message_text(
+            "🚧 This Admin section will be connected next."
+        )
+
 
 async def error_handler(
     update: object,
@@ -243,6 +274,10 @@ def main():
 
     application.add_handler(
         CommandHandler("start", start)
+    )
+
+    application.add_handler(
+        CommandHandler("admin", admin_command)
     )
 
     application.add_handler(
